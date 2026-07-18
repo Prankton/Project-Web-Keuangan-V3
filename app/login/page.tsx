@@ -1,9 +1,8 @@
 "use client";
-export const dynamic = 'force-dynamic';
 
 import React, { useState } from 'react';
-import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
+import { createBrowserClient } from '@supabase/ssr'; 
 
 export default function LoginPage() {
   const [isLogin, setIsLogin] = useState(true);
@@ -13,6 +12,12 @@ export default function LoginPage() {
   const [message, setMessage] = useState({ text: '', type: '' });
   
   const router = useRouter();
+
+  // Inisialisasi Supabase khusus untuk Client Component
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,8 +34,12 @@ export default function LoginPage() {
         if (error) throw error;
         
         setMessage({ text: 'LOGIN BERHASIL! MEMUAT SISTEM...', type: 'success' });
-        // Redirect ke Dashboard setelah login berhasil
-        setTimeout(() => router.push('/'), 1500);
+        
+        // Refresh router agar Next.js membaca Cookie baru, lalu pindah halaman
+        router.refresh();
+        setTimeout(() => {
+          router.push('/');
+        }, 1500);
 
       } else {
         // Logika Register
