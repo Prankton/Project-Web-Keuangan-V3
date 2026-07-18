@@ -1,61 +1,65 @@
-// middleware.ts
-import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 export async function middleware(request: NextRequest) {
-  // Bawa response awal
-  let response = NextResponse.next({
-    request: { headers: request.headers },
+  // 1. Inisialisasi response object
+  let supabaseResponse = NextResponse.next({
+    request,
   });
 
-  // Buat client Supabase khusus untuk server
-const supabase = createServerClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  {
+  // 2. Buat Supabase Client khusus untuk Middleware
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
       cookies: {
-        get(name: string) {
-          return request.cookies.get(name)?.value;
+        getAll() {
+          return request.cookies.getAll();
         },
-        set(name: string, value: string, options: CookieOptions) {
-          request.cookies.set({ name, value, ...options });
-          response = NextResponse.next({
-            request: { headers: request.headers },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+          supabaseResponse = NextResponse.next({
+            request,
           });
-          response.cookies.set({ name, value, ...options });
-        },
-        remove(name: string, options: CookieOptions) {
-          request.cookies.set({ name, value: '', ...options });
-          response = NextResponse.next({
-            request: { headers: request.headers },
-          });
-          response.cookies.set({ name, value: '', ...options });
+          cookiesToSet.forEach(({ name, value, options }) =>
+            supabaseResponse.cookies.set(name, value, options)
+          );
         },
       },
     }
   );
 
-  // Cek sesi user saat ini
-  const { data: { session } } = await supabase.auth.getSession();
+  // 3. Ambil data user dari Supabase
+  const { data: { user } } = await supabase.auth.getUser();
 
-  // Jika tidak ada sesi dan user mencoba mengakses halaman selain login/register
-  if (!session && !request.nextUrl.pathname.startsWith('/login')) {
+  // 4. Logika Keamanan (Proteksi Halaman)
+  // Jika belum login dan mencoba buka halaman selain /login -> Arahkan ke /login
+  if (!user && !request.nextUrl.pathname.startsWith('/login')) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     return NextResponse.redirect(url);
   }
 
-  // Jika sudah login tapi mencoba ke halaman login, kembalikan ke dashboard
-  if (session && request.nextUrl.pathname.startsWith('/login')) {
+  // Jika sudah login dan mencoba buka halaman /login -> Arahkan ke Dashboard (/)
+  if (user && request.nextUrl.pathname.startsWith('/login')) {
     const url = request.nextUrl.clone();
     url.pathname = '/';
     return NextResponse.redirect(url);
   }
 
-  return response;
+  return supabaseResponse;
 }
 
-// Tentukan rute mana saja yang akan dicek oleh middleware ini
+// 5. KONFIGURASI MATCHER (Sangat Penting untuk mencegah Error 500 di Vercel)
 export const config = {
-  matcher: ['/', '/login'], 
+  matcher: [
+    /*
+     * Middleware hanya akan berjalan di halaman web, KECUALI file statis di bawah ini:
+     * - _next/static (file sistem)
+     * - _next/image (optimasi gambar)
+     * - favicon.ico (ikon web)
+     * - Semua file berekstensi gambar/vektor
+     */
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+  ],
 };
