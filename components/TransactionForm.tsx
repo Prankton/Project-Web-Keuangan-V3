@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { createBrowserClient } from '@supabase/ssr';
 
 export function TransaksiPage() {
   return (
@@ -21,6 +21,11 @@ export default function TransactionForm() {
     notes: '',
   });
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
+
+  const supabase = createBrowserClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
