@@ -3,6 +3,14 @@
 import React, { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 
+export function TransaksiPage() {
+  return (
+    <div className="p-6">
+      <TransactionForm />
+    </div>
+  );
+}
+
 export default function TransactionForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({

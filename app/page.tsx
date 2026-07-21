@@ -1,4 +1,8 @@
 import React from 'react';
+// 1. Import Link untuk navigasi antar halaman di Next.js
+import Link from 'next/link';
+// 2. Import komponen grafik diletakkan di paling atas (bukan di bawah)
+import CategoryChart from '@/components/CategoryChart'; 
 
 export default function Dashboard() {
   return (
@@ -7,12 +11,23 @@ export default function Dashboard() {
       <header className="flex justify-between items-center mb-10 border-4 border-black bg-white dark:bg-black p-4 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] dark:shadow-[6px_6px_0px_0px_#4dff4d]">
         <h1 className="text-4xl font-bold uppercase tracking-widest">RetroFin 98</h1>
         <div className="flex gap-4">
-          <button className="retro-btn bg-yellow-300 dark:bg-purple-600 text-black dark:text-white border-4 border-black p-2 font-bold shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_#4dff4d] transition-all">
+          
+          {/* 3. Tombol diubah menjadi <Link> agar bisa diklik dan pindah ke /transaksi */}
+          <Link 
+            href="/transaksi" 
+            className="retro-btn bg-yellow-300 dark:bg-purple-600 text-black dark:text-white border-4 border-black p-2 font-bold shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_#4dff4d] transition-all"
+          >
             + Transaksi
-          </button>
-          <button className="retro-btn bg-gray-300 dark:bg-gray-700 text-black dark:text-white border-4 border-black p-2 font-bold shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_#4dff4d] transition-all">
+          </Link>
+          
+          {/* 4. Tombol diubah menjadi <Link> menuju /profil */}
+          <Link 
+            href="/profil" 
+            className="retro-btn bg-gray-300 dark:bg-gray-700 text-black dark:text-white border-4 border-black p-2 font-bold shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_#4dff4d] transition-all"
+          >
             Profil
-          </button>
+          </Link>
+
         </div>
       </header>
 
@@ -63,7 +78,6 @@ export default function Dashboard() {
         <div className="bg-white dark:bg-black border-4 border-black p-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] dark:shadow-[8px_8px_0px_0px_#4dff4d]">
           <div className="flex justify-between items-center border-b-4 border-black pb-2 mb-4">
             <h2 className="text-2xl font-bold uppercase">Aktivitas Terkini</h2>
-            {/* Search Bar Sederhana */}
             <input 
               type="text" 
               placeholder="Cari..." 
@@ -98,18 +112,17 @@ export default function Dashboard() {
             </tbody>
           </table>
           
-          <button className="w-full mt-6 retro-btn bg-black text-white dark:bg-white dark:text-black border-4 border-black p-2 font-bold uppercase hover:bg-gray-800 transition-colors">
+          <Link href="/histori" className="block text-center w-full mt-6 retro-btn bg-black text-white dark:bg-white dark:text-black border-4 border-black p-2 font-bold uppercase hover:bg-gray-800 transition-colors">
             Lihat Semua Histori
-          </button>
+          </Link>
         </div>
       </div>
+
+      {/* 5. Integrasi Chart ditempatkan di DALAM return */}
+      <div className="mt-10">
+        <CategoryChart />
+      </div>
+
     </div>
   );
 }
-
-import CategoryChart from '@/components/CategoryChart';
-
-// Di dalam return Dashboard():
-<div className="mt-10">
-  <CategoryChart />
-</div>
