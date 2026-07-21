@@ -22,7 +22,7 @@ export default function Dashboard() {
           
           {/* 4. Tombol diubah menjadi <Link> menuju /profil */}
           <Link 
-            href="/profil" 
+            href="/profile" 
             className="retro-btn bg-gray-300 dark:bg-gray-700 text-black dark:text-white border-4 border-black p-2 font-bold shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_#4dff4d] transition-all"
           >
             Profil
