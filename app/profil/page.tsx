@@ -22,13 +22,11 @@ type Budget = {
 export default function ProfilPage() {
   const router = useRouter();
 
-  // Inisialisasi Supabase
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
-  // --- STATE PROFIL ---
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [userEmail, setUserEmail] = useState('');
@@ -38,10 +36,7 @@ export default function ProfilPage() {
     avatar_seed: 'RetroFin'
   });
 
-  // --- STATE TARGET ANGGARAN ---
   const [budgets, setBudgets] = useState<Budget[]>([]);
-
-  // --- STATE KASBON ---
   const [debts, setDebts] = useState<Debt[]>([]);
   const [editingDebt, setEditingDebt] = useState<Debt | null>(null);
   const [debtForm, setDebtForm] = useState({
@@ -87,12 +82,11 @@ export default function ProfilPage() {
         
         if (debtsData) setDebts(debtsData as Debt[]);
 
-        // 3. Ambil Target Anggaran (dari LocalStorage)
+        // 3. Ambil Target Anggaran
         const savedBudgets = localStorage.getItem('retrofin_budgets');
         if (savedBudgets) {
           setBudgets(JSON.parse(savedBudgets));
         } else {
-          // Default jika belum ada
           const defaultBudgets = [
             { category: 'Makan', target: 3000000 },
             { category: 'Transportasi', target: 1000000 }
@@ -111,9 +105,7 @@ export default function ProfilPage() {
     loadAllData();
   }, [router, supabase]);
 
-  // ==========================================
-  // LOGIKA PROFIL
-  // ==========================================
+  // --- LOGIKA PROFIL ---
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setUpdating(true);
@@ -125,13 +117,12 @@ export default function ProfilPage() {
           id: userId,
           full_name: formData.full_name,
           avatar_seed: formData.avatar_seed,
-          updated_at: new Date().toISOString(),
         });
 
       if (error) throw error;
       alert("PROFIL DIPERBARUI. [OK]");
     } catch (error: any) {
-      alert("ERROR: " + error.message);
+      alert("ERROR PROFIL: " + error.message);
     } finally {
       setUpdating(false);
     }
@@ -148,9 +139,7 @@ export default function ProfilPage() {
     document.documentElement.classList.toggle('dark');
   };
 
-  // ==========================================
-  // LOGIKA TARGET ANGGARAN (BUDGETING)
-  // ==========================================
+  // --- LOGIKA TARGET ANGGARAN ---
   const saveBudgetsToStorage = (newBudgets: Budget[]) => {
     setBudgets(newBudgets);
     localStorage.setItem('retrofin_budgets', JSON.stringify(newBudgets));
@@ -182,18 +171,22 @@ export default function ProfilPage() {
     }
   };
 
-  // ==========================================
-  // LOGIKA KASBON (UTANG/PIUTANG)
-  // ==========================================
+  // --- LOGIKA KASBON (UTANG/PIUTANG) ---
   const fetchDebts = async () => {
-    const { data } = await supabase.from('debts').select('*').order('due_date', { ascending: true });
-    if (data) setDebts(data as Debt[]);
+    const { data, error } = await supabase.from('debts').select('*').order('due_date', { ascending: true });
+    if (error) {
+      console.error("Error fetching debts:", error.message);
+    } else if (data) {
+      setDebts(data as Debt[]);
+    }
   };
 
+  // Tambah Kasbon (Dengan ID Unik Generator)
   const handleAddDebt = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       const { error } = await supabase.from('debts').insert([{
+        id: crypto.randomUUID(), // <--- Mencegah error duplicate key
         user_id: userId,
         type: debtForm.type,
         person_name: debtForm.person_name,
@@ -201,44 +194,66 @@ export default function ProfilPage() {
         due_date: debtForm.due_date,
         status: 'belum_lunas'
       }]);
+
       if (error) throw error;
+
       alert("KASBON BERHASIL DICATAT. [OK]");
       setDebtForm({ type: 'utang', person_name: '', amount: '', due_date: '' });
       fetchDebts();
     } catch (err: any) {
-      alert("ERROR: " + err.message);
+      alert("GAGAL MENAMBAH KASBON: " + err.message);
     }
   };
 
+  // Hapus Kasbon
   const handleDeleteDebt = async (id: string) => {
     if (!window.confirm("HAPUS DATA KASBON INI PERMANEN?")) return;
-    const { error } = await supabase.from('debts').delete().eq('id', id);
-    if (!error) fetchDebts();
+    try {
+      const { error } = await supabase.from('debts').delete().eq('id', id);
+      if (error) throw error;
+
+      alert("DATA KASBON BERHASIL DIHAPUS. [OK]");
+      fetchDebts();
+    } catch (err: any) {
+      alert("GAGAL MENGHAPUS: " + err.message);
+    }
   };
 
+  // Edit Kasbon
   const handleSaveEditDebt = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingDebt) return;
-    const { error } = await supabase.from('debts').update({
-      type: editingDebt.type,
-      person_name: editingDebt.person_name,
-      amount: Number(editingDebt.amount),
-      due_date: editingDebt.due_date,
-    }).eq('id', editingDebt.id);
+    try {
+      const { error } = await supabase.from('debts').update({
+        type: editingDebt.type,
+        person_name: editingDebt.person_name,
+        amount: Number(editingDebt.amount),
+        due_date: editingDebt.due_date,
+      }).eq('id', editingDebt.id);
 
-    if (!error) {
-      alert("KASBON DIPERBARUI. [OK]");
+      if (error) throw error;
+
+      alert("KASBON BERHASIL DIPERBARUI. [OK]");
       setEditingDebt(null);
       fetchDebts();
+    } catch (err: any) {
+      alert("GAGAL MENGEDIT: " + err.message);
     }
   };
 
+  // Tandai Lunas
   const markAsPaid = async (id: string) => {
-    await supabase.from('debts').update({ status: 'lunas' }).eq('id', id);
-    fetchDebts();
+    try {
+      const { error } = await supabase.from('debts').update({ status: 'lunas' }).eq('id', id);
+      if (error) throw error;
+
+      alert("STATUS KASBON DIUBAH MENJADI LUNAS! [OK]");
+      fetchDebts();
+    } catch (err: any) {
+      alert("GAGAL MENGUBAH STATUS: " + err.message);
+    }
   };
 
-  // --- TAMPILAN LOADING ---
   if (loading) {
     return (
       <div className="min-h-screen p-10 flex items-center justify-center font-bold uppercase text-2xl dark:text-white">
@@ -247,27 +262,22 @@ export default function ProfilPage() {
     );
   }
 
-  // --- TAMPILAN UTAMA ---
   return (
     <div className="min-h-screen p-6 md:p-12">
       
       {/* Tombol Kembali */}
       <button 
+        type="button"
         onClick={() => router.push('/')}
         className="mb-8 retro-btn bg-black text-white dark:bg-white dark:text-black border-4 border-black px-4 py-2 font-bold uppercase shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_#4dff4d]"
       >
         {"< KEMBALI KE DASHBOARD"}
       </button>
 
-      {/* Kontainer Utama */}
       <div className="max-w-6xl mx-auto flex flex-col gap-10">
         
-        {/* ========================================== */}
-        {/* SECTION 1: PROFIL & TEMA */}
-        {/* ========================================== */}
+        {/* === SECTION 1: PROFIL & TEMA === */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          
-          {/* Avatar Pixel Art dari DiceBear */}
           <div className="md:col-span-1 bg-cyan-300 dark:bg-cyan-900 border-4 border-black p-6 shadow-[10px_10px_0px_0px_rgba(0,0,0,1)] flex flex-col items-center text-center h-fit">
             <h2 className="w-full bg-black text-white p-2 font-bold uppercase border-2 border-black mb-4">
               ID CARD
@@ -292,7 +302,6 @@ export default function ProfilPage() {
             </button>
           </div>
 
-          {/* Form Pengaturan Profil */}
           <div className="md:col-span-2 bg-white dark:bg-black border-4 border-black p-6 shadow-[10px_10px_0px_0px_rgba(0,0,0,1)] dark:shadow-[10px_10px_0px_0px_#4dff4d]">
             <h2 className="text-3xl font-bold uppercase mb-6 border-b-4 border-black pb-2 dark:text-white">
               PENGATURAN_AKUN.CFG
@@ -338,13 +347,15 @@ export default function ProfilPage() {
           </div>
         </div>
 
-        {/* ========================================== */}
-        {/* SECTION 2: KELOLA TARGET ANGGARAN */}
-        {/* ========================================== */}
+        {/* === SECTION 2: KELOLA TARGET ANGGARAN === */}
         <div className="bg-white dark:bg-black border-4 border-black p-6 shadow-[10px_10px_0px_0px_rgba(0,0,0,1)] dark:shadow-[10px_10px_0px_0px_#4dff4d]">
           <div className="flex justify-between items-center border-b-4 border-black pb-3 mb-6">
             <h2 className="text-2xl font-bold uppercase dark:text-white">KELOLA TARGET ANGGARAN</h2>
-            <button onClick={handleAddBudget} className="bg-yellow-300 dark:bg-purple-600 text-black dark:text-white border-4 border-black px-3 py-1 font-bold uppercase retro-btn text-sm">
+            <button 
+              type="button" 
+              onClick={handleAddBudget} 
+              className="bg-yellow-300 dark:bg-purple-600 text-black dark:text-white border-4 border-black px-3 py-1 font-bold uppercase retro-btn text-sm"
+            >
               + TAMBAH TARGET
             </button>
           </div>
@@ -360,10 +371,10 @@ export default function ProfilPage() {
                   <p className="font-bold text-sm text-gray-600 dark:text-gray-400">Target: Rp {b.target.toLocaleString('id-ID')}</p>
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => handleEditBudget(idx)} className="bg-blue-400 text-black border-2 border-black px-2 py-1 font-bold text-xs uppercase retro-btn">
+                  <button type="button" onClick={() => handleEditBudget(idx)} className="bg-blue-400 text-black border-2 border-black px-2 py-1 font-bold text-xs uppercase retro-btn">
                     EDIT
                   </button>
-                  <button onClick={() => handleDeleteBudget(idx)} className="bg-red-400 text-black border-2 border-black px-2 py-1 font-bold text-xs uppercase retro-btn">
+                  <button type="button" onClick={() => handleDeleteBudget(idx)} className="bg-red-400 text-black border-2 border-black px-2 py-1 font-bold text-xs uppercase retro-btn">
                     DEL
                   </button>
                 </div>
@@ -372,9 +383,7 @@ export default function ProfilPage() {
           </div>
         </div>
 
-        {/* ========================================== */}
-        {/* SECTION 3: KELOLA KASBON (UTANG/PIUTANG) */}
-        {/* ========================================== */}
+        {/* === SECTION 3: KELOLA KASBON (UTANG/PIUTANG) === */}
         <div className="bg-white dark:bg-black border-4 border-black p-6 shadow-[10px_10px_0px_0px_rgba(0,0,0,1)] dark:shadow-[10px_10px_0px_0px_#4dff4d]">
           <h2 className="text-2xl font-bold uppercase border-b-4 border-black pb-3 mb-6 dark:text-white">
             KELOLA BUKU KASBON
@@ -403,7 +412,9 @@ export default function ProfilPage() {
                 <label className="font-bold text-xs uppercase block">Jatuh Tempo</label>
                 <input type="date" required value={debtForm.due_date} onChange={(e) => setDebtForm({...debtForm, due_date: e.target.value})} className="w-full border-2 border-black p-2 font-bold bg-white dark:bg-black focus:outline-none" />
               </div>
-              <button type="submit" className="bg-blue-400 text-black border-2 border-black p-2 font-bold uppercase retro-btn mt-2">SIMPAN KASBON</button>
+              <button type="submit" className="bg-blue-400 text-black border-2 border-black p-2 font-bold uppercase retro-btn mt-2 cursor-pointer">
+                SIMPAN KASBON
+              </button>
             </form>
 
             {/* Tabel Daftar Kasbon */}
@@ -428,10 +439,16 @@ export default function ProfilPage() {
                       <td className="p-2 text-right font-bold">Rp {d.amount.toLocaleString('id-ID')}</td>
                       <td className="p-2 font-bold uppercase">{d.status === 'lunas' ? 'LUNAS' : 'BELUM LUNAS'}</td>
                       <td className="p-2 text-center space-x-1">
-                        <button onClick={() => setEditingDebt(d)} className="bg-blue-300 text-black border border-black px-1 font-bold text-xs retro-btn">EDIT</button>
-                        <button onClick={() => handleDeleteDebt(d.id)} className="bg-red-400 text-black border border-black px-1 font-bold text-xs retro-btn">DEL</button>
+                        <button type="button" onClick={() => setEditingDebt(d)} className="bg-blue-300 text-black border border-black px-1 font-bold text-xs retro-btn cursor-pointer">
+                          EDIT
+                        </button>
+                        <button type="button" onClick={() => handleDeleteDebt(d.id)} className="bg-red-400 text-black border border-black px-1 font-bold text-xs retro-btn cursor-pointer">
+                          DEL
+                        </button>
                         {d.status !== 'lunas' && (
-                          <button onClick={() => markAsPaid(d.id)} className="bg-green-400 text-black border border-black px-1 font-bold text-xs retro-btn">LUNAS</button>
+                          <button type="button" onClick={() => markAsPaid(d.id)} className="bg-green-400 text-black border border-black px-1 font-bold text-xs retro-btn cursor-pointer">
+                            LUNAS
+                          </button>
                         )}
                       </td>
                     </tr>
@@ -444,9 +461,7 @@ export default function ProfilPage() {
 
       </div>
 
-      {/* ========================================== */}
       {/* MODAL EDIT KASBON */}
-      {/* ========================================== */}
       {editingDebt && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="w-full max-w-md bg-gray-200 dark:bg-gray-800 border-4 border-black p-6 shadow-[12px_12px_0px_0px_rgba(0,0,0,1)]">
@@ -456,8 +471,8 @@ export default function ProfilPage() {
               <input type="number" value={editingDebt.amount} onChange={(e) => setEditingDebt({...editingDebt, amount: Number(e.target.value)})} className="border-2 border-black p-2 font-bold bg-white dark:bg-black focus:outline-none" required />
               <input type="date" value={editingDebt.due_date} onChange={(e) => setEditingDebt({...editingDebt, due_date: e.target.value})} className="border-2 border-black p-2 font-bold bg-white dark:bg-black focus:outline-none" required />
               <div className="flex gap-2 mt-2">
-                <button type="submit" className="flex-1 bg-green-400 text-black border-2 border-black p-2 font-bold retro-btn">SIMPAN</button>
-                <button type="button" onClick={() => setEditingDebt(null)} className="flex-1 bg-red-400 text-black border-2 border-black p-2 font-bold retro-btn">BATAL</button>
+                <button type="submit" className="flex-1 bg-green-400 text-black border-2 border-black p-2 font-bold retro-btn cursor-pointer">SIMPAN</button>
+                <button type="button" onClick={() => setEditingDebt(null)} className="flex-1 bg-red-400 text-black border-2 border-black p-2 font-bold retro-btn cursor-pointer">BATAL</button>
               </div>
             </form>
           </div>
