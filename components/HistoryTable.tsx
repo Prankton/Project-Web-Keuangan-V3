@@ -1,21 +1,26 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { createBrowserClient } from '@supabase/ssr';
+import { showToast } from '@/components/RetroToast';
 
 export type Transaction = {
   id: string;
   type: 'pemasukan' | 'pengeluaran';
   amount: number;
   category: string;
+  payment_method?: string;
   date: string;
   notes?: string;
   receipt_url?: string;
 };
 
-export default function HistoryTable() {
+export default function HistoriPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [editingTrx, setEditingTrx] = useState<Transaction | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -36,7 +41,7 @@ export default function HistoryTable() {
       if (error) throw error;
       if (data) setTransactions(data as Transaction[]);
     } catch (err: any) {
-      console.error('Error fetching history:', err.message);
+      showToast("Gagal memuat histori: " + err.message, "error");
     } finally {
       setIsLoading(false);
     }
@@ -51,10 +56,10 @@ export default function HistoryTable() {
     try {
       const { error } = await supabase.from('transactions').delete().eq('id', id);
       if (error) throw error;
-      alert("TRANSAKSI BERHASIL DIHAPUS. [OK]");
+      showToast("TRANSAKSI BERHASIL DIHAPUS.", "success");
       fetchTransactions();
     } catch (error: any) {
-      alert("GAGAL MENGHAPUS: " + error.message);
+      showToast("GAGAL MENGHAPUS: " + error.message, "error");
     }
   };
 
@@ -71,57 +76,116 @@ export default function HistoryTable() {
           date: editingTrx.date,
           type: editingTrx.type,
           notes: editingTrx.notes,
+          payment_method: editingTrx.payment_method
         })
         .eq('id', editingTrx.id);
 
       if (error) throw error;
-      alert("TRANSAKSI BERHASIL DIPERBARUI. [OK]");
+      showToast("TRANSAKSI DIPERBARUI.", "success");
       setEditingTrx(null);
       fetchTransactions();
     } catch (error: any) {
-      alert("GAGAL MEMPERBARUI: " + error.message);
+      showToast("GAGAL MEMPERBARUI: " + error.message, "error");
     } finally {
       setIsUpdating(false);
     }
   };
 
+  // Logika Filter (Pencarian Teks & Rentang Tanggal)
   const filteredTransactions = transactions.filter((trx) => {
     const q = searchQuery.toLowerCase();
     const cat = trx.category ? trx.category.toLowerCase().includes(q) : false;
     const note = trx.notes ? trx.notes.toLowerCase().includes(q) : false;
-    return cat || note;
+    const matchesSearch = cat || note;
+
+    let matchesDate = true;
+    if (startDate && trx.date < startDate) matchesDate = false;
+    if (endDate && trx.date > endDate) matchesDate = false;
+
+    return matchesSearch && matchesDate;
   });
 
   return (
-    <div className="relative mt-6">
-      <div className="bg-white dark:bg-black border-4 border-black p-6 shadow-[10px_10px_0px_0px_rgba(0,0,0,1)] dark:shadow-[10px_10px_0px_0px_#4dff4d]">
-        
-        {/* Header Table & Filter */}
-        <div className="flex flex-col md:flex-row justify-between border-b-4 border-black pb-4 mb-6 gap-4 items-center">
-          <h2 className="text-xl md:text-2xl font-bold uppercase dark:text-white bg-blue-300 dark:bg-blue-900 px-3 py-1 border-4 border-black">
-            DATABASE HISTORI
-          </h2>
+    <div className="min-h-screen p-6 md:p-12 text-black dark:text-white">
+      
+      {/* Header Navigasi */}
+      <header className="flex flex-col sm:flex-row justify-between items-center mb-8 border-4 border-black bg-white dark:bg-black p-4 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] dark:shadow-[6px_6px_0px_0px_#4dff4d] gap-4">
+        <div className="flex items-center gap-4">
+          <Link 
+            href="/" 
+            className="retro-btn bg-black text-white dark:bg-white dark:text-black border-4 border-black px-3 py-1 font-bold text-sm uppercase"
+          >
+            {"< DASHBOARD"}
+          </Link>
+          <h1 className="text-2xl md:text-3xl font-bold uppercase tracking-widest">
+            HISTORI TRANSAKSI
+          </h1>
+        </div>
 
+        <Link 
+          href="/transaksi" 
+          className="retro-btn bg-yellow-300 dark:bg-purple-600 text-black dark:text-white border-4 border-black px-4 py-2 font-bold text-sm uppercase shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_#4dff4d]"
+        >
+          + TRANSAKSI BARU
+        </Link>
+      </header>
+
+      {/* Kotak Filter & Pencarian */}
+      <div className="bg-white dark:bg-black border-4 border-black p-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] dark:shadow-[8px_8px_0px_0px_#4dff4d] mb-6 flex flex-col md:flex-row gap-4 items-center justify-between">
+        <div className="w-full md:w-1/3">
+          <label className="block text-xs font-bold uppercase mb-1">Cari Kategori / Catatan</label>
           <input 
             type="text"
-            placeholder="CARI KATEGORI / CATATAN..."
+            placeholder="Ketik kata kunci..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="border-4 border-black p-2 font-bold bg-gray-100 dark:bg-gray-800 text-black dark:text-white focus:outline-none w-full md:w-72"
+            className="border-4 border-black p-2 font-bold bg-gray-100 dark:bg-gray-800 text-black dark:text-white focus:outline-none w-full"
           />
         </div>
 
-        {/* Tabel */}
+        <div className="w-full md:w-1/3 flex gap-2">
+          <div className="flex-1">
+            <label className="block text-xs font-bold uppercase mb-1">Dari Tanggal</label>
+            <input 
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="border-4 border-black p-2 font-bold bg-gray-100 dark:bg-gray-800 text-black dark:text-white focus:outline-none w-full text-sm"
+            />
+          </div>
+          <div className="flex-1">
+            <label className="block text-xs font-bold uppercase mb-1">Sampai Tanggal</label>
+            <input 
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="border-4 border-black p-2 font-bold bg-gray-100 dark:bg-gray-800 text-black dark:text-white focus:outline-none w-full text-sm"
+            />
+          </div>
+        </div>
+
+        <div className="w-full md:w-auto flex items-end">
+          <button 
+            type="button"
+            onClick={() => { setSearchQuery(''); setStartDate(''); setEndDate(''); }}
+            className="w-full md:w-auto mt-auto bg-gray-200 dark:bg-gray-800 border-4 border-black px-4 py-2 font-bold uppercase text-sm retro-btn"
+          >
+            Reset Filter
+          </button>
+        </div>
+      </div>
+
+      {/* Tabel Riwayat Lengkap */}
+      <div className="bg-white dark:bg-black border-4 border-black p-6 shadow-[10px_10px_0px_0px_rgba(0,0,0,1)] dark:shadow-[10px_10px_0px_0px_#4dff4d]">
         <div className="overflow-x-auto">
           {isLoading ? (
-            <div className="p-8 text-center font-bold text-xl uppercase dark:text-white">
-              MEMUAT HISTORI TRANSAKSI...
-            </div>
+            <div className="p-8 text-center font-bold text-xl uppercase">MEMUAT HISTORI...</div>
           ) : (
-            <table className="w-full text-left border-collapse min-w-[600px]">
+            <table className="w-full text-left border-collapse min-w-[650px]">
               <thead>
-                <tr className="bg-black text-white dark:bg-white dark:text-black uppercase">
+                <tr className="bg-black text-white dark:bg-white dark:text-black uppercase text-sm">
                   <th className="py-3 px-4 border-4 border-black">Tanggal</th>
+                  <th className="py-3 px-4 border-4 border-black">Metode</th>
                   <th className="py-3 px-4 border-4 border-black">Kategori</th>
                   <th className="py-3 px-4 border-4 border-black">Catatan</th>
                   <th className="py-3 px-4 border-4 border-black text-right">Jumlah</th>
@@ -132,9 +196,14 @@ export default function HistoryTable() {
               <tbody>
                 {filteredTransactions.length > 0 ? (
                   filteredTransactions.map((trx) => (
-                    <tr key={trx.id} className="hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-black dark:text-white">
+                    <tr key={trx.id} className="hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
                       <td className="py-3 px-4 border-x-4 border-b-4 border-black font-bold">{trx.date}</td>
-                      <td className="py-3 px-4 border-x-4 border-b-4 border-black">{trx.category}</td>
+                      <td className="py-3 px-4 border-x-4 border-b-4 border-black uppercase text-xs font-bold">
+                        <span className="bg-yellow-300 text-black px-2 py-1 border-2 border-black">
+                          {trx.payment_method || 'Cash'}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 border-x-4 border-b-4 border-black font-bold">{trx.category}</td>
                       <td className="py-3 px-4 border-x-4 border-b-4 border-black">{trx.notes || '-'}</td>
                       <td className={`py-3 px-4 border-x-4 border-b-4 border-black text-right font-bold ${trx.type === 'pemasukan' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                         {trx.type === 'pemasukan' ? '+' : '-'}Rp {Number(trx.amount).toLocaleString('id-ID')}
@@ -147,27 +216,15 @@ export default function HistoryTable() {
                         ) : '-'}
                       </td>
                       <td className="py-3 px-4 border-x-4 border-b-4 border-black text-center space-x-2">
-                        <button 
-                          type="button" 
-                          onClick={() => setEditingTrx(trx)} 
-                          className="bg-blue-400 text-black border-2 border-black px-2 py-1 text-xs font-bold retro-btn cursor-pointer"
-                        >
-                          EDIT
-                        </button>
-                        <button 
-                          type="button" 
-                          onClick={() => handleDelete(trx.id)} 
-                          className="bg-red-400 text-black border-2 border-black px-2 py-1 text-xs font-bold retro-btn cursor-pointer"
-                        >
-                          DEL
-                        </button>
+                        <button type="button" onClick={() => setEditingTrx(trx)} className="bg-blue-400 text-black border-2 border-black px-2 py-1 text-xs font-bold retro-btn cursor-pointer">EDIT</button>
+                        <button type="button" onClick={() => handleDelete(trx.id)} className="bg-red-400 text-black border-2 border-black px-2 py-1 text-xs font-bold retro-btn cursor-pointer">DEL</button>
                       </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={6} className="py-10 text-center border-4 border-t-0 border-black font-bold uppercase text-xl text-black dark:text-white bg-gray-100 dark:bg-gray-900">
-                      BELUM ADA DATA TRANSAKSI TERSIMPAN.
+                    <td colSpan={7} className="py-10 text-center border-4 border-t-0 border-black font-bold uppercase text-xl bg-gray-100 dark:bg-gray-900">
+                      TIDAK ADA TRANSAKSI DALAM RENTANG WAKTU INI.
                     </td>
                   </tr>
                 )}
@@ -177,82 +234,42 @@ export default function HistoryTable() {
         </div>
       </div>
 
-      {/* Modal Edit Transaksi */}
+      {/* Modal Edit Transaksi (Modern-Retro) */}
       {editingTrx && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md bg-gray-200 dark:bg-gray-800 border-4 border-black shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] dark:shadow-[12px_12px_0px_0px_#4dff4d]">
-            <div className="bg-blue-700 dark:bg-blue-900 border-b-4 border-black p-2 flex justify-between items-center text-white">
+          <div className="w-full max-w-md bg-white dark:bg-gray-900 border-4 border-black shadow-[12px_12px_0px_0px_rgba(0,0,0,1)]">
+            <div className="bg-blue-600 border-b-4 border-black p-3 flex justify-between items-center text-white">
               <h1 className="font-bold tracking-widest uppercase">EDIT_TRANSAKSI.EXE</h1>
-              <button 
-                type="button" 
-                onClick={() => setEditingTrx(null)} 
-                className="bg-gray-300 text-black border-2 border-black font-bold w-6 h-6 flex items-center justify-center text-sm"
-              >
-                X
-              </button>
+              <button type="button" onClick={() => setEditingTrx(null)} className="bg-gray-300 text-black border-2 border-black font-bold w-6 h-6 flex items-center justify-center text-sm cursor-pointer">X</button>
             </div>
 
-            <form onSubmit={handleSaveEdit} className="p-6 flex flex-col gap-4 text-black dark:text-white">
-              <div className="flex flex-col">
-                <label className="font-bold uppercase">Tipe</label>
-                <select 
-                  value={editingTrx.type} 
-                  onChange={(e) => setEditingTrx({...editingTrx, type: e.target.value as any})}
-                  className="border-4 border-black p-2 font-bold bg-white dark:bg-black focus:outline-none"
-                >
+            <form onSubmit={handleSaveEdit} className="p-6 flex flex-col gap-4">
+              <div>
+                <label className="font-bold uppercase text-xs block mb-1">Tipe</label>
+                <select value={editingTrx.type} onChange={(e) => setEditingTrx({...editingTrx, type: e.target.value as any})} className="border-4 border-black p-2 font-bold bg-white dark:bg-black w-full focus:outline-none">
                   <option value="pengeluaran">PENGELUARAN (-)</option>
                   <option value="pemasukan">PEMASUKAN (+)</option>
                 </select>
               </div>
 
-              <div className="flex flex-col">
-                <label className="font-bold uppercase">Kategori</label>
-                <input 
-                  type="text" 
-                  value={editingTrx.category}
-                  onChange={(e) => setEditingTrx({...editingTrx, category: e.target.value})}
-                  className="border-4 border-black p-2 font-bold bg-white dark:bg-black focus:outline-none"
-                  required
-                />
+              <div>
+                <label className="font-bold uppercase text-xs block mb-1">Kategori</label>
+                <input type="text" value={editingTrx.category} onChange={(e) => setEditingTrx({...editingTrx, category: e.target.value})} className="border-4 border-black p-2 font-bold bg-white dark:bg-black w-full focus:outline-none" required />
               </div>
 
-              <div className="flex flex-col">
-                <label className="font-bold uppercase">Jumlah (Rp)</label>
-                <input 
-                  type="number" 
-                  value={editingTrx.amount}
-                  onChange={(e) => setEditingTrx({...editingTrx, amount: Number(e.target.value)})}
-                  className="border-4 border-black p-2 font-bold bg-white dark:bg-black focus:outline-none"
-                  required
-                />
+              <div>
+                <label className="font-bold uppercase text-xs block mb-1">Jumlah (Rp)</label>
+                <input type="number" value={editingTrx.amount} onChange={(e) => setEditingTrx({...editingTrx, amount: Number(e.target.value)})} className="border-4 border-black p-2 font-bold bg-white dark:bg-black w-full focus:outline-none" required />
               </div>
 
-              <div className="flex flex-col">
-                <label className="font-bold uppercase">Tanggal</label>
-                <input 
-                  type="date" 
-                  value={editingTrx.date}
-                  onChange={(e) => setEditingTrx({...editingTrx, date: e.target.value})}
-                  className="border-4 border-black p-2 font-bold bg-white dark:bg-black focus:outline-none"
-                  required
-                />
+              <div>
+                <label className="font-bold uppercase text-xs block mb-1">Tanggal</label>
+                <input type="date" value={editingTrx.date} onChange={(e) => setEditingTrx({...editingTrx, date: e.target.value})} className="border-4 border-black p-2 font-bold bg-white dark:bg-black w-full focus:outline-none" required />
               </div>
 
               <div className="flex gap-4 mt-4">
-                <button 
-                  type="submit" 
-                  disabled={isUpdating} 
-                  className="flex-1 bg-green-400 text-black border-4 border-black py-2 font-bold uppercase shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] retro-btn cursor-pointer"
-                >
-                  {isUpdating ? 'MENYIMPAN...' : 'SIMPAN [OK]'}
-                </button>
-                <button 
-                  type="button" 
-                  onClick={() => setEditingTrx(null)} 
-                  className="flex-1 bg-red-400 text-black border-4 border-black py-2 font-bold uppercase shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] retro-btn cursor-pointer"
-                >
-                  BATAL [ESC]
-                </button>
+                <button type="submit" disabled={isUpdating} className="flex-1 bg-green-400 text-black border-4 border-black py-2 font-bold uppercase retro-btn cursor-pointer">SIMPAN</button>
+                <button type="button" onClick={() => setEditingTrx(null)} className="flex-1 bg-red-400 text-black border-4 border-black py-2 font-bold uppercase retro-btn cursor-pointer">BATAL</button>
               </div>
             </form>
           </div>
